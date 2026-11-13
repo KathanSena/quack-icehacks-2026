@@ -149,6 +149,23 @@
     code.clearFocus();
   }
 
+  function changeLanguage(language) {
+    const example = window.QUACK_EXAMPLES.find((item) => item.language === language && item.id !== "blank");
+    if (example) {
+      loadExample(example.id);
+    } else {
+      code.setLanguage(language);
+      code.set(language === "html"
+        ? "<!-- Choose an example or paste your HTML here. -->\n"
+        : language === "python"
+          ? "# Choose an example or paste your code here.\n"
+          : "// Choose an example or paste your code here.\n");
+      els.output.value = "";
+      code.clearFocus();
+    }
+    resetSession();
+  }
+
   // ------------------------------------------------------------------ //
   // Transcript / insights / stats
   // ------------------------------------------------------------------ //
@@ -369,7 +386,7 @@
       loadExample(els.exampleSelect.value);
       resetSession();
     });
-    els.languageSelect.addEventListener("change", () => code.setLanguage(els.languageSelect.value));
+    els.languageSelect.addEventListener("change", () => changeLanguage(els.languageSelect.value));
 
     els.start.addEventListener("click", () => {
       els.intro.classList.add("hidden");
