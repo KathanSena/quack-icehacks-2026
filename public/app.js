@@ -150,19 +150,19 @@
   }
 
   function changeLanguage(language) {
-    const example = window.QUACK_EXAMPLES.find((item) => item.language === language && item.id !== "blank");
-    if (example) {
-      loadExample(example.id);
-    } else {
-      code.setLanguage(language);
-      code.set(language === "html"
-        ? "<!-- Choose an example or paste your HTML here. -->\n"
-        : language === "python"
-          ? "# Choose an example or paste your code here.\n"
-          : "// Choose an example or paste your code here.\n");
+    const selected = window.QUACK_EXAMPLES.find((item) => item.id === els.exampleSelect.value) || window.QUACK_EXAMPLES[0];
+    code.setLanguage(language);
+    if (selected.codeByLanguage && selected.codeByLanguage[language]) {
+      code.set(selected.codeByLanguage[language]);
+      els.output.value = selected.output;
+    } else if (selected.id === "blank") {
+      const comments = { python: "#", html: null, plaintext: "//" };
+      const c = language in comments ? comments[language] : "//";
+      const msg = "Paste your buggy code here, then tell the duck what's wrong.";
+      code.set(c === null ? `<!-- ${msg} -->\n` : `${c} ${msg}\n`);
       els.output.value = "";
-      code.clearFocus();
     }
+    code.clearFocus();
     resetSession();
   }
 
