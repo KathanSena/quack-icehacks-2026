@@ -359,7 +359,9 @@
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let rec = null;
   let finalText = "";
+  let interimText = "";
   let sendOnStop = true;
+  let recognitionFailed = false;
 
   function updateMic() {
     els.mic.setAttribute("aria-pressed", String(state.listening));
@@ -370,44 +372,61 @@
     if (!SR || state.listening || state.busy) return;
     stopSpeech();
     finalText = "";
+    interimText = "";
+    recognitionFailed = false;
     sendOnStop = true;
     els.interim.textContent = "";
     rec = new SR();
-    rec.lang = "en-US";
+    // Match the user's browser language (for example, en-GB for UK English).
+    rec.lang = navigator.language || "en-US";
     rec.continuous = true;
     rec.interimResults = true;
+    rec.onstart = () => {
+      state.listening = true;
+      updateMic();
+      setDuck("listening");
+    };
     rec.onresult = (e) => {
-      let interim = "";
+      interimText = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i];
-        if (r.isFinal) finalText += r[0].transcript + " ";
-        else interim += r[0].transcript;
+        if (r.isFinal) finalText += `${r[0].transcript.trim()} `;
+        else interimText += r[0].transcript;
       }
-      els.interim.textContent = (finalText + interim).trim();
+      els.interim.textContent = `${finalText} ${interimText}`.trim();
     };
     rec.onerror = (e) => {
+      recognitionFailed = e.error !== "aborted";
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        toast("Microphone is blocked. Allow mic access in your browser, or type instead.", true);
-      } else if (e.error !== "no-speech" && e.error !== "aborted") {
+        toast("Microphone access is blocked. Allow it in your browser’s site settings, then try again.", true);
+      } else if (e.error === "audio-capture") {
+        toast("No microphone was found. Check that one is connected and enabled.", true);
+      } else if (e.error === "no-speech") {
+        toast("I didn’t hear anything. Check your mic and try speaking again.", true);
+      } else if (e.error === "network") {
+        toast("Speech recognition couldn’t reach your browser’s speech service. Check your connection and try again.", true);
+      } else if (e.error !== "aborted") {
         toast(`Speech recognition error: ${e.error}`, true);
       }
     };
     rec.onend = () => {
       state.listening = false;
       updateMic();
-      const said = els.interim.textContent.trim();
+      const said = `${finalText} ${interimText}`.trim();
       els.interim.textContent = "";
       setDuck("idle");
       rec = null;
-      if (said && sendOnStop) sendToDuck(said);
+      if (said && sendOnStop && !recognitionFailed) sendToDuck(said);
+      else if (!said && sendOnStop && !recognitionFailed) toast("I didn’t hear anything. Try again or type your question.", true);
     };
     try {
       rec.start();
-      state.listening = true;
+    } catch (err) {
+      state.listening = false;
       updateMic();
-      setDuck("listening");
-    } catch {
       rec = null;
+      setDuck("idle");
+      toast("Couldn’t start the microphone. Check browser permission and try again.", true);
     }
   }
 
