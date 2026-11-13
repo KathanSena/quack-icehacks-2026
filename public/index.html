@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quack: the rubber duck that talks back</title>
+  <meta name="description" content="A voice debugging companion that only asks questions. It helps you find the bug yourself instead of handing you the answer." />
+  <meta property="og:title" content="Quack: the rubber duck that talks back" />
+  <meta property="og:description" content="Explain your bug out loud. The duck asks questions until you find the bug yourself. It never writes code for you." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦆</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-emoji" aria-hidden="true">🦆</span>
+      <div>
+        <h1>Quack</h1>
+        <p>The rubber duck that talks back, and never gives you the answer.</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span id="modeBadge" class="badge" title="Connection status">…</span>
+      <button id="voiceToggle" class="btn ghost" aria-pressed="true" title="Toggle the duck's voice">🔊 Voice on</button>
+      <button id="resetBtn" class="btn ghost" title="Start a new debugging session">↺ New bug</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ================= Editor ================= -->
+    <section class="panel editor-panel" aria-label="Code editor">
+      <div class="panel-toolbar">
+        <label class="field">
+          <span>Example bug</span>
+          <select id="exampleSelect"></select>
+        </label>
+        <label class="field">
+          <span>Language</span>
+          <select id="languageSelect">
+            <option value="python">Python</option>
+            <option value="javascript">JavaScript</option>
+            <option value="typescript">TypeScript</option>
+            <option value="java">Java</option>
+            <option value="cpp">C++</option>
+            <option value="c">C</option>
+            <option value="csharp">C#</option>
+            <option value="go">Go</option>
+            <option value="rust">Rust</option>
+            <option value="html">HTML</option>
+            <option value="plaintext">Other</option>
+          </select>
+        </label>
+      </div>
+      <div id="editor" class="editor"></div>
+      <textarea id="fallbackEditor" class="editor fallback hidden" spellcheck="false" aria-label="Code"></textarea>
+      <label class="output-box">
+        <span>🐞 What's going wrong? <em>(error message or expected vs. actual output, optional)</em></span>
+        <textarea id="outputInput" rows="3" spellcheck="false" placeholder="e.g. Expected 85.0 but got 83.3"></textarea>
+      </label>
+    </section>
+
+    <!-- ================= Duck ================= -->
+    <section class="panel duck-panel" aria-label="Talk to the duck">
+      <div class="duck-stage">
+        <div id="duck" class="duck" data-state="idle" aria-hidden="true">
+          <svg viewBox="0 0 220 190" xmlns="http://www.w3.org/2000/svg">
+            <g class="rings">
+              <circle cx="70" cy="70" r="52" />
+              <circle cx="70" cy="70" r="52" />
+            </g>
+            <ellipse class="shadow" cx="115" cy="176" rx="72" ry="9" />
+            <g class="bob">
+              <path class="tail" d="M168 108 Q200 86 196 118 Q186 132 166 128 Z" />
+              <ellipse class="body" cx="118" cy="128" rx="72" ry="46" />
+              <ellipse class="wing" cx="128" cy="124" rx="38" ry="22" transform="rotate(-12 128 124)" />
+              <g class="head">
+                <circle class="headball" cx="72" cy="72" r="40" />
+                <ellipse class="cheek" cx="88" cy="88" rx="9" ry="5" />
+                <g class="eye">
+                  <circle cx="80" cy="60" r="10" fill="#fff" />
+                  <circle class="pupil" cx="77" cy="61" r="5.5" />
+                  <circle cx="75" cy="58.5" r="1.8" fill="#fff" />
+                </g>
+                <path class="beak-top" d="M40 74 Q18 74 8 82 Q22 88 42 86 Z" />
+                <path class="beak-bottom" d="M42 86 Q24 88 12 86 Q22 98 42 94 Z" />
+              </g>
+            </g>
+            <g class="thought">
+              <circle cx="132" cy="34" r="6" />
+              <circle cx="152" cy="22" r="7" />
+              <circle cx="174" cy="14" r="8" />
+            </g>
+          </svg>
+        </div>
+        <div class="duck-status">
+          <span id="statusText">Ready when you are</span>
+          <span id="interim" class="interim"></span>
+        </div>
+      </div>
+
+      <ol id="transcript" class="transcript" aria-live="polite"></ol>
+
+      <div class="controls">
+        <button id="hintBtn" class="btn secondary" title="Get a more specific question (still no answers)">
+          🧭 I'm stuck
+          <span class="hint-dots" aria-label="Hint level"><i></i><i></i><i></i></span>
+        </button>
+        <button id="micBtn" class="mic" aria-pressed="false" title="Click (or hold Space) and explain your bug out loud">
+          <span class="mic-icon">🎙️</span>
+          <span id="micLabel">Talk</span>
+        </button>
+        <button id="fixedBtn" class="btn success" title="Finish the session and get your debrief">🎉 I fixed it!</button>
+      </div>
+
+      <form id="textForm" class="text-form" autocomplete="off">
+        <input id="textInput" type="text" placeholder="…or type to the duck" aria-label="Message the duck" />
+        <button class="btn primary" type="submit">Send</button>
+      </form>
+      <p class="kbd-hint">Tip: hold <kbd>Space</kbd> (outside the editor) to talk, let go to send.</p>
+
+      <div class="insights">
+        <div class="insights-head">
+          <h2>🧠 What you've figured out</h2>
+        </div>
+        <ul id="insightList" class="insight-list">
+          <li class="empty">Your realizations will collect here as you debug.</li>
+        </ul>
+        <div class="stats">
+          <div><strong id="statCode">0</strong><span>lines of code written by the duck</span></div>
+          <div><strong id="statBlocked">0</strong><span>answers the duck held back</span></div>
+          <div><strong id="statQuestions">0</strong><span>questions asked</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Built for IceHacks 2026 · The duck never writes code. Choose an example bug above to try it.
+  </footer>
+
+  <!-- ================= Intro overlay ================= -->
+  <div id="intro" class="overlay" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+    <div class="card intro-card">
+      <div class="intro-duck" aria-hidden="true">🦆</div>
+      <h2 id="introTitle">Meet Quack, a rubber duck that talks back.</h2>
+      <p class="lead">Programmers explain bugs to rubber ducks because saying it out loud helps you spot the problem. Quack listens, and then asks questions.</p>
+      <ul class="how">
+        <li><b>1.</b> Paste your code, or pick an example bug.</li>
+        <li><b>2.</b> Explain out loud what's going wrong.</li>
+        <li><b>3.</b> Answer the duck's questions until <em>you</em> find the bug.</li>
+      </ul>
+      <p class="promise">🛡️ Quack never writes code or gives you the fix. A guardrail checks every reply before you hear it.</p>
+      <button id="startBtn" class="btn primary big">Start debugging</button>
+      <p id="browserNote" class="note"></p>
+    </div>
+  </div>
+
+  <!-- ================= Debrief modal ================= -->
+  <div id="debrief" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="debriefTitle">
+    <div class="card debrief-card">
+      <button id="closeDebrief" class="close" aria-label="Close">✕</button>
+      <p class="eyebrow">Bug squashed 🎉</p>
+      <h2 id="debriefTitle">You fixed it yourself.</h2>
+      <div class="debrief-stats">
+        <div><strong id="dTime">–</strong><span>time to fix</span></div>
+        <div><strong id="dQuestions">–</strong><span>duck questions</span></div>
+        <div><strong id="dHints">–</strong><span>hints used</span></div>
+        <div class="zero"><strong>0</strong><span>lines written by AI</span></div>
+      </div>
+      <div id="debriefBody" class="debrief-body">
+        <div class="loading-line"></div><div class="loading-line short"></div><div class="loading-line"></div>
+      </div>
+      <div class="debrief-actions">
+        <button id="newBugBtn" class="btn primary">Debug another bug</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+
+  <script src="/examples.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
