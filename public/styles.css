@@ -133,28 +133,20 @@ kbd {
 .duck .eye { transform-box: fill-box; transform-origin: center; animation: blink 4.5s infinite; }
 .duck .beak-bottom { transform-box: fill-box; transform-origin: 100% 0%; transition: transform 0.15s; }
 .duck .thought circle { fill: rgba(255, 255, 255, 0.85); opacity: 0; }
-.duck .rings circle { fill: none; stroke: var(--cyan); stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center; }
 
 @keyframes bob { 50% { transform: translateY(-5px) rotate(-1deg); } }
 @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
-@keyframes flap { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-22deg); } }
-@keyframes ring { from { transform: scale(0.9); opacity: 0.7; } to { transform: scale(1.6); opacity: 0; } }
 @keyframes think { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } }
 
-.duck[data-state="listening"] .head { transform: rotate(-8deg); }
-.duck[data-state="listening"] .rings circle { animation: ring 1.6s ease-out infinite; }
-.duck[data-state="listening"] .rings circle:nth-child(2) { animation-delay: 0.8s; }
 .duck[data-state="thinking"] .head { transform: rotate(6deg); }
 .duck[data-state="thinking"] .thought circle { animation: think 1.2s ease-in-out infinite; }
 .duck[data-state="thinking"] .thought circle:nth-child(2) { animation-delay: 0.2s; }
 .duck[data-state="thinking"] .thought circle:nth-child(3) { animation-delay: 0.4s; }
-.duck[data-state="speaking"] .beak-bottom { animation: flap 0.22s ease-in-out infinite; }
 .duck[data-state="celebrate"] .bob { animation: hop 0.5s ease-in-out 3; }
 @keyframes hop { 50% { transform: translateY(-18px) rotate(-4deg); } }
 
 .duck-status { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 #statusText { font-weight: 700; font-size: 17px; }
-.interim { color: var(--cyan); font-size: 14px; font-style: italic; min-height: 1.2em; overflow-wrap: anywhere; }
 
 /* ---------- Transcript ---------- */
 .transcript {
@@ -174,28 +166,12 @@ kbd {
 @keyframes pop { from { opacity: 0; transform: translateY(6px); } }
 
 /* ---------- Controls ---------- */
-.controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; margin-top: 12px; }
+.controls { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 12px; margin-top: 12px; }
 .controls .btn.secondary { justify-self: start; }
 .controls .btn.success { justify-self: end; }
 .hint-dots { display: inline-flex; gap: 3px; }
 .hint-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); }
 .hint-dots i.on { background: var(--cyan); }
-
-.mic {
-  width: 92px; height: 92px; border-radius: 50%; border: 0;
-  background: radial-gradient(circle at 35% 30%, #ffe680, var(--duck) 60%, var(--duck-dark));
-  color: #1a1300; font-weight: 800; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  box-shadow: 0 10px 30px rgba(255, 212, 59, 0.25), inset 0 -4px 0 rgba(0, 0, 0, 0.12);
-  transition: transform 0.15s ease, box-shadow 0.2s;
-}
-.mic:hover { transform: translateY(-2px); }
-.mic:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-.mic-icon { font-size: 28px; }
-.mic[aria-pressed="true"] {
-  background: radial-gradient(circle at 35% 30%, #ff9aa9, var(--red) 65%);
-  color: #fff; animation: micpulse 1.2s ease-in-out infinite;
-}
-@keyframes micpulse { 50% { box-shadow: 0 0 0 14px rgba(251, 113, 133, 0.15); } }
 
 .text-form { display: flex; gap: 8px; margin-top: 14px; }
 .text-form input {
@@ -244,7 +220,6 @@ kbd {
 .how b { color: var(--duck); margin-right: 6px; }
 .promise { font-size: 13.5px; color: #bbf7d0; background: rgba(52, 211, 153, 0.08); border: 1px solid rgba(52, 211, 153, 0.25); padding: 10px 12px; border-radius: 12px; margin: 0 0 20px; }
 .note { color: var(--muted); font-size: 12.5px; margin: 14px 0 0; }
-.note.warn { color: #fde68a; }
 
 .debrief-card { max-width: 620px; }
 .close { position: absolute; top: 16px; right: 16px; background: none; border: 0; color: var(--muted); font-size: 18px; }
@@ -280,7 +255,6 @@ kbd {
   .brand p { display: none; }
   .duck { width: 110px; }
   .controls { grid-template-columns: 1fr 1fr; }
-  .controls .mic { grid-column: 1 / -1; grid-row: 1; justify-self: center; }
   .controls .btn { justify-self: stretch !important; justify-content: center; }
   .debrief-stats { grid-template-columns: repeat(2, 1fr); }
   .card { padding: 22px; }

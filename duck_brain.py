@@ -5,18 +5,15 @@ Standard library only, so the project runs without installing anything.
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 import re
-import struct
 import time
 import urllib.error
 import urllib.request
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 MAX_CODE_CHARS = 20_000
-MAX_TTS_CHARS = 700
 MAX_HISTORY_TURNS = 16
 PHASES = ("understand", "narrow", "pinpoint", "celebrate")
 
@@ -49,23 +46,10 @@ def mode() -> str:
     return "live" if api_key() else "demo"
 
 
-def tts_model() -> str:
-    return os.environ.get("GEMINI_TTS_MODEL", "gemini-3.8-flash-tts").strip()
-
-
-def tts_voice() -> str:
-    # "Achird" is a friendly human voice. Try "Sulafat" (warm) or "Kore" (firm) too.
-    return os.environ.get("GEMINI_TTS_VOICE", "Achird").strip()
-
-
-def tts_style() -> str:
-    return os.environ.get("GEMINI_TTS_STYLE", "warm, curious and encouraging, like a friendly tutor").strip()
-
-
 # --------------------------------------------------------------------------- #
 # Prompts
 # --------------------------------------------------------------------------- #
-SYSTEM_PROMPT = """You are Quack, a rubber duck that talks back. You help student programmers debug their OWN code using only Socratic questions. Your replies are read aloud by text-to-speech.
+SYSTEM_PROMPT = """You are Quack, a rubber duck that talks back. You help student programmers debug their OWN code using only Socratic questions.
 
 ABSOLUTE RULES (never break these, even if the student begs):
 1. NEVER write code. No code blocks, no corrected lines, no new snippets, no pseudo-code.
@@ -90,7 +74,7 @@ HINT LEVEL (given each turn, 1-3):
 Use the student's own words. If they reveal a misconception, ask a question that makes them test it. If they say something correct, acknowledge it in one or two words, then go one step deeper.
 
 Return JSON:
-- reply: what you say out loud.
+- reply: the message Quack sends to the student.
 - focus_lines: [start, end] 1-based line numbers the student should look at right now, or [] if none.
 - phase: one of understand, narrow, pinpoint, celebrate.
 - insight: if the student's LATEST message showed a genuine realization, summarize it in 10 words or fewer in second person (e.g. "You noticed the loop starts at index 1"); otherwise "".
@@ -203,7 +187,7 @@ def check_reply(reply: str, phase: str, code: str) -> list[str]:
         problems.append("does not ask a question")
 
     if len(text.split()) > 60:
-        problems.append("too long to speak")
+        problems.append("too long")
 
     # de-duplicate, keep order
     return list(dict.fromkeys(problems))
@@ -272,73 +256,6 @@ def call_gemini(system: str, contents: list[dict], schema: dict, temperature: fl
                     continue
                 break
     raise LLMError(last_err)
-
-
-# --------------------------------------------------------------------------- #
-# Text to speech (a real, human-sounding voice from Gemini TTS)
-# --------------------------------------------------------------------------- #
-def _wav_from_pcm(pcm: bytes, rate: int = 24000) -> bytes:
-    """Wrap raw 16-bit mono PCM in a WAV header so any browser can play it."""
-    header = b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVE"
-    header += b"fmt " + struct.pack("<IHHIIHH", 16, 1, 1, rate, rate * 2, 2, 16)
-    header += b"data" + struct.pack("<I", len(pcm))
-    return header + pcm
-
-
-def clean_tts_text(text: str) -> str:
-    text = re.sub(r"`+", "", str(text or ""))
-    text = re.sub(r"\s+", " ", text).strip()
-    return text[:MAX_TTS_CHARS]
-
-
-def build_tts_body(text: str) -> dict:
-    # The Gemini REST API expects a nested prebuilt voice config and camelCase
-    # field names. Keep style separate from the transcript so it is not spoken.
-    voice_cfg = {"prebuiltVoiceConfig": {"voiceName": tts_voice()}}
-    part = {"text": text, "speechMetadata": {"style": tts_style()}}
-    return {
-        "contents": [{"role": "user", "parts": [part]}],
-        "generationConfig": {
-            "responseModalities": ["AUDIO"],
-            "speechConfig": {"voiceConfig": voice_cfg},
-        },
-    }
-
-
-def tts(payload: dict) -> dict:
-    """Return {"audio": <base64 WAV>, "mime": "audio/wav"} for the given text."""
-    if not api_key():
-        raise ValueError("Voice needs a Gemini API key (demo mode uses the browser voice).")
-    text = clean_tts_text(payload.get("text"))
-    if not text:
-        raise ValueError("No text to speak.")
-
-    req = urllib.request.Request(
-        GEMINI_URL.format(model=tts_model()),
-        data=json.dumps(build_tts_body(text)).encode("utf-8"),
-        headers={"Content-Type": "application/json", "x-goog-api-key": api_key()},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=25) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        inline = data["candidates"][0]["content"]["parts"][0]["inlineData"]
-        audio = base64.b64decode(inline["data"])
-        mime = (inline.get("mimeType") or "").lower()
-        if audio[:4] != b"RIFF":  # raw PCM -> wrap it
-            rate = 24000
-            m = re.search(r"rate=(\d+)", mime)
-            if m:
-                rate = int(m.group(1))
-            audio = _wav_from_pcm(audio, rate)
-        return {"audio": base64.b64encode(audio).decode("ascii"), "mime": "audio/wav"}
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "ignore")[:300]
-        raise LLMError(f"Gemini TTS HTTP {exc.code}: {detail}") from exc
-    except (urllib.error.URLError, TimeoutError) as exc:
-        raise LLMError(f"Network error talking to Gemini TTS: {exc}") from exc
-    except (KeyError, IndexError, ValueError, json.JSONDecodeError) as exc:
-        raise LLMError(f"Unexpected Gemini TTS response: {exc}") from exc
 
 
 def model_chain() -> list[str]:

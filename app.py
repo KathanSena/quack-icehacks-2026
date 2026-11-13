@@ -59,7 +59,6 @@ def app(environ, start_response):
     actions: dict[str, Callable[[dict], dict]] = {
         "/api/duck": duck_brain.duck_turn,
         "/api/debrief": duck_brain.debrief,
-        "/api/tts": duck_brain.tts,
     }
     if path in actions:
         if method != "POST":

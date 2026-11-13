@@ -1,8 +1,6 @@
 """Tests for the "never give the answer" guardrail.  Run: python -m unittest -v"""
 
-import os
 import unittest
-from unittest import mock
 
 import duck_brain
 
@@ -78,48 +76,6 @@ class HelperTests(unittest.TestCase):
 
     def test_number_lines(self):
         self.assertTrue(number_lines("x\ny").startswith("1| x"))
-
-
-
-class TtsTests(unittest.TestCase):
-    def test_clean_text_strips_backticks_and_limits_length(self):
-        out = duck_brain.clean_tts_text("What is `i`  on\nline 3? " + "x" * 2000)
-        self.assertNotIn("`", out)
-        self.assertNotIn("\n", out)
-        self.assertLessEqual(len(out), duck_brain.MAX_TTS_CHARS)
-
-    def test_request_shapes(self):
-        body = duck_brain.build_tts_body("Hi")
-        self.assertEqual(body["generationConfig"]["responseModalities"], ["AUDIO"])
-        part = body["contents"][0]["parts"][0]
-        self.assertEqual(part["text"], "Hi")
-        self.assertIn("speechMetadata", part)
-        voice = body["generationConfig"]["speechConfig"]["voiceConfig"]
-        self.assertIn("prebuiltVoiceConfig", voice)
-        self.assertTrue(voice["prebuiltVoiceConfig"]["voiceName"])
-
-    def test_pcm_is_wrapped_as_wav(self):
-        wav = duck_brain._wav_from_pcm(b"\x00\x01" * 100)
-        self.assertEqual(wav[:4], b"RIFF")
-        self.assertEqual(wav[8:12], b"WAVE")
-
-    def test_requires_key(self):
-        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
-            with self.assertRaises(ValueError):
-                duck_brain.tts({"text": "hello"})
-
-    def test_tts_returns_wav_from_raw_pcm(self):
-        import base64, io, json
-        pcm = base64.b64encode(b"\x00\x01" * 50).decode()
-        body = json.dumps({"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "audio/L16;rate=24000", "data": pcm}}]}}]})
-        resp = io.BytesIO(body.encode())
-        resp.__enter__ = lambda s: s
-        resp.__exit__ = lambda *a: None
-        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}), mock.patch("urllib.request.urlopen", return_value=resp):
-            out = duck_brain.tts({"text": "hello"})
-        self.assertEqual(out["mime"], "audio/wav")
-        self.assertEqual(base64.b64decode(out["audio"])[:4], b"RIFF")
-
 
 if __name__ == "__main__":
     unittest.main()

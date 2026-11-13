@@ -17,7 +17,7 @@ import duck_brain
 ROOT = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(ROOT, "public")
 MAX_BODY = 256 * 1024
-RATE_LIMIT = (150, 600)  # 150 requests per 10 minutes per IP (chat + voice)
+RATE_LIMIT = (150, 600)  # 150 requests per 10 minutes per IP
 
 _hits: dict[str, deque] = defaultdict(deque)
 
@@ -78,7 +78,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         route = self.path.split("?")[0]
-        handlers = {"/api/duck": duck_brain.duck_turn, "/api/debrief": duck_brain.debrief, "/api/tts": duck_brain.tts}
+        handlers = {"/api/duck": duck_brain.duck_turn, "/api/debrief": duck_brain.debrief}
         if route not in handlers:
             return self._json(404, {"error": "Not found"})
         if rate_limited(self._client_ip()):

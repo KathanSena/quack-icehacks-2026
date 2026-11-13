@@ -5,12 +5,12 @@
   const els = {
     editor: $("editor"), fallback: $("fallbackEditor"), output: $("outputInput"),
     exampleSelect: $("exampleSelect"), languageSelect: $("languageSelect"),
-    duck: $("duck"), status: $("statusText"), interim: $("interim"),
-    transcript: $("transcript"), mic: $("micBtn"), micLabel: $("micLabel"),
+    duck: $("duck"), status: $("statusText"),
+    transcript: $("transcript"),
     hint: $("hintBtn"), fixed: $("fixedBtn"), textForm: $("textForm"), textInput: $("textInput"),
     insightList: $("insightList"), statCode: $("statCode"), statBlocked: $("statBlocked"), statQuestions: $("statQuestions"),
-    modeBadge: $("modeBadge"), voiceToggle: $("voiceToggle"), reset: $("resetBtn"),
-    intro: $("intro"), start: $("startBtn"), browserNote: $("browserNote"),
+    modeBadge: $("modeBadge"), reset: $("resetBtn"),
+    intro: $("intro"), start: $("startBtn"),
     debrief: $("debrief"), debriefBody: $("debriefBody"), closeDebrief: $("closeDebrief"), newBug: $("newBugBtn"),
     dTime: $("dTime"), dQuestions: $("dQuestions"), dHints: $("dHints"), toast: $("toast"),
   };
@@ -19,16 +19,13 @@
     "So, what is your code supposed to do, and what is it doing instead?";
   const STATUS = {
     idle: "Ready when you are",
-    listening: "Listening… explain your bug",
     thinking: "Hmm, thinking of a good question…",
-    speaking: "Quack is asking…",
     celebrate: "You did it!",
   };
 
   const state = {
     history: [], hintLevel: 1, hintsUsed: 0, questions: 0, blocked: 0, insights: [],
-    startedAt: null, busy: false, listening: false, celebrated: false,
-    voiceOn: localStorage.getItem("quack.voice") !== "off",
+    startedAt: null, busy: false, celebrated: false,
     sessionId: 0, requestController: null,
   };
 
@@ -204,7 +201,6 @@
     state.busy = busy;
     els.hint.disabled = busy;
     els.textInput.disabled = busy;
-    els.mic.disabled = busy || !SR;
   }
 
   // ------------------------------------------------------------------ //
@@ -247,7 +243,7 @@
         state.celebrated = true;
         els.fixed.classList.add("pulse");
       }
-      speak(data.reply, celebrate ? "celebrate" : "idle");
+      setDuck(celebrate ? "celebrate" : "idle");
     } catch (err) {
       if (sessionId !== state.sessionId || err.name === "AbortError") return;
       typing.remove();
@@ -263,180 +259,6 @@
   }
 
   // ------------------------------------------------------------------ //
-  // Voice output: a real human voice (Gemini TTS via /api/tts).
-  // Falls back to the best natural browser voice if TTS isn't available.
-  // ------------------------------------------------------------------ //
-  let liveVoice = false;       // set from /api/health (needs a Gemini key)
-  let speechToken = 0;         // invalidates stale/in-flight speech
-  let audioEl = null;
-  let ttsController = null;
-  const ttsCache = new Map();  // text -> object URL
-
-  function pickVoice() {
-    if (!("speechSynthesis" in window)) return null;
-    const en = speechSynthesis.getVoices().filter((x) => /^en(-|_)/i.test(x.lang));
-    // Prefer neural / "natural" voices, then well-known good system voices.
-    const prefs = [
-      /Natural/i, /Neural/i, /Online/i,
-      /Google (UK|US) English/i,
-      /Samantha|Ava|Allison|Serena|Daniel|Karen/i,
-      /Aria|Jenny|Guy|Libby|Sonia/i,
-    ];
-    for (const p of prefs) {
-      const v = en.find((x) => p.test(x.name));
-      if (v) return v;
-    }
-    return en.find((x) => x.default) || en[0] || null;
-  }
-  let voice = null;
-  if ("speechSynthesis" in window) {
-    voice = pickVoice();
-    speechSynthesis.onvoiceschanged = () => { voice = pickVoice(); };
-  }
-
-  function stopSpeech() {
-    speechToken += 1;
-    if (ttsController) { ttsController.abort(); ttsController = null; }
-    if (audioEl) { audioEl.pause(); audioEl.removeAttribute("src"); audioEl = null; }
-    if ("speechSynthesis" in window) speechSynthesis.cancel();
-  }
-
-  async function fetchVoiceUrl(text, signal) {
-    if (ttsCache.has(text)) return ttsCache.get(text);
-    const data = await api("/api/tts", { text }, signal);
-    const bytes = Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0));
-    const url = URL.createObjectURL(new Blob([bytes], { type: data.mime || "audio/wav" }));
-    ttsCache.set(text, url);
-    return url;
-  }
-
-  function speakWithBrowser(text, token, finish) {
-    if (!("speechSynthesis" in window)) return finish();
-    const u = new SpeechSynthesisUtterance(text);
-    if (voice) u.voice = voice;
-    u.rate = 1;
-    u.pitch = 1;  // natural pitch (the old 1.5 made voices sound squeaky and robotic)
-    u.onstart = () => { if (token === speechToken) setDuck("speaking"); };
-    u.onend = () => { if (token === speechToken) finish(); };
-    u.onerror = () => { if (token === speechToken) finish(); };
-    speechSynthesis.speak(u);
-  }
-
-  async function speak(text, after = "idle") {
-    const finish = () => {
-      if (state.listening) return setDuck("listening");
-      setDuck(after);
-      if (after === "celebrate") setTimeout(() => { if (els.duck.dataset.state === "celebrate") setDuck("idle"); }, 1800);
-    };
-    stopSpeech();
-    if (!state.voiceOn) return finish();
-    const token = speechToken;
-    const clean = text.replace(/`/g, "");
-
-    if (liveVoice) {
-      try {
-        ttsController = new AbortController();
-        const url = await fetchVoiceUrl(clean, ttsController.signal);
-        if (token !== speechToken) return;
-        const audio = new Audio(url);
-        audioEl = audio;
-        audio.onplay = () => { if (token === speechToken) setDuck("speaking"); };
-        audio.onended = () => { if (token === speechToken) finish(); };
-        audio.onerror = () => { if (token === speechToken) speakWithBrowser(clean, token, finish); };
-        await audio.play();
-        return;
-      } catch (err) {
-        if (token !== speechToken || err.name === "AbortError") return;
-        // TTS failed (quota, network, autoplay block): use the browser voice instead.
-      }
-    }
-    speakWithBrowser(clean, token, finish);
-  }
-
-  // ------------------------------------------------------------------ //
-  // Voice input (speech recognition)
-  // ------------------------------------------------------------------ //
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let rec = null;
-  let finalText = "";
-  let interimText = "";
-  let sendOnStop = true;
-  let recognitionFailed = false;
-
-  function updateMic() {
-    els.mic.setAttribute("aria-pressed", String(state.listening));
-    els.micLabel.textContent = state.listening ? "Send" : "Talk";
-  }
-
-  function startListening() {
-    if (!SR || state.listening || state.busy) return;
-    stopSpeech();
-    finalText = "";
-    interimText = "";
-    recognitionFailed = false;
-    sendOnStop = true;
-    els.interim.textContent = "";
-    rec = new SR();
-    // Match the user's browser language (for example, en-GB for UK English).
-    rec.lang = navigator.language || "en-US";
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.onstart = () => {
-      state.listening = true;
-      updateMic();
-      setDuck("listening");
-    };
-    rec.onresult = (e) => {
-      interimText = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i];
-        if (r.isFinal) finalText += `${r[0].transcript.trim()} `;
-        else interimText += r[0].transcript;
-      }
-      els.interim.textContent = `${finalText} ${interimText}`.trim();
-    };
-    rec.onerror = (e) => {
-      recognitionFailed = e.error !== "aborted";
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        toast("Microphone access is blocked. Allow it in your browser’s site settings, then try again.", true);
-      } else if (e.error === "audio-capture") {
-        toast("No microphone was found. Check that one is connected and enabled.", true);
-      } else if (e.error === "no-speech") {
-        toast("I didn’t hear anything. Check your mic and try speaking again.", true);
-      } else if (e.error === "network") {
-        toast("Speech recognition couldn’t reach your browser’s speech service. Check your connection and try again.", true);
-      } else if (e.error !== "aborted") {
-        toast(`Speech recognition error: ${e.error}`, true);
-      }
-    };
-    rec.onend = () => {
-      state.listening = false;
-      updateMic();
-      const said = `${finalText} ${interimText}`.trim();
-      els.interim.textContent = "";
-      setDuck("idle");
-      rec = null;
-      if (said && sendOnStop && !recognitionFailed) sendToDuck(said);
-      else if (!said && sendOnStop && !recognitionFailed) toast("I didn’t hear anything. Try again or type your question.", true);
-    };
-    try {
-      rec.start();
-    } catch (err) {
-      state.listening = false;
-      updateMic();
-      rec = null;
-      setDuck("idle");
-      toast("Couldn’t start the microphone. Check browser permission and try again.", true);
-    }
-  }
-
-  function stopListening(send = true) {
-    if (!rec) return;
-    sendOnStop = send;
-    rec.stop();
-  }
-
-  // ------------------------------------------------------------------ //
   // Debrief
   // ------------------------------------------------------------------ //
   function formatDuration(ms) {
@@ -449,14 +271,13 @@
       toast("Talk to the duck about your bug first!");
       return;
     }
-    stopListening(false);
     els.dTime.textContent = formatDuration(Date.now() - (state.startedAt || Date.now()));
     els.dQuestions.textContent = String(state.questions);
     els.dHints.textContent = String(state.hintsUsed);
     els.debriefBody.innerHTML = '<div class="loading-line"></div><div class="loading-line short"></div><div class="loading-line"></div>';
     els.debrief.classList.remove("hidden");
     setDuck("celebrate");
-    speak("Quack quack! You fixed it yourself. Let's look at what you learned.", "celebrate");
+    setTimeout(() => { if (els.duck.dataset.state === "celebrate") setDuck("idle"); }, 1800);
 
     try {
       const d = await api("/api/debrief", { code: code.get(), history: state.history });
@@ -484,8 +305,6 @@
     if (state.requestController) state.requestController.abort();
     state.requestController = null;
     setBusy(false);
-    stopListening(false);
-    stopSpeech();
     Object.assign(state, { history: [], hintLevel: 1, hintsUsed: 0, questions: 0, blocked: 0, insights: [], startedAt: null, celebrated: false });
     els.transcript.innerHTML = "";
     els.insightList.innerHTML = '<li class="empty">Your realizations will collect here as you debug.</li>';
@@ -496,7 +315,6 @@
     if (greet) {
       state.history.push({ role: "duck", text: GREETING });
       addMessage("duck", GREETING);
-      speak(GREETING);
     }
   }
 
@@ -505,7 +323,6 @@
       const res = await fetch("/api/health");
       const h = await res.json();
       if (h.mode === "live") {
-        liveVoice = true;
         els.modeBadge.textContent = "● Live AI";
         els.modeBadge.className = "badge live";
         els.modeBadge.title = `Model: ${h.model}`;
@@ -520,23 +337,10 @@
     }
   }
 
-  function setVoice(on) {
-    state.voiceOn = on;
-    localStorage.setItem("quack.voice", on ? "on" : "off");
-    els.voiceToggle.textContent = on ? "🔊 Voice on" : "🔇 Voice off";
-    els.voiceToggle.setAttribute("aria-pressed", String(on));
-    if (!on) stopSpeech();
-  }
-
-  const isTypingTarget = (el) => !!(el && el.closest && el.closest("input, textarea, select, [contenteditable], .monaco-editor"));
-  const overlayOpen = () => !els.intro.classList.contains("hidden") || !els.debrief.classList.contains("hidden");
-
   // ------------------------------------------------------------------ //
   // Wire up
   // ------------------------------------------------------------------ //
   function bindEvents() {
-    els.mic.addEventListener("click", () => (state.listening ? stopListening(true) : startListening()));
-
     els.textForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const t = els.textInput.value;
@@ -560,7 +364,6 @@
     });
 
     els.reset.addEventListener("click", () => resetSession());
-    els.voiceToggle.addEventListener("click", () => setVoice(!state.voiceOn));
 
     els.exampleSelect.addEventListener("change", () => {
       loadExample(els.exampleSelect.value);
@@ -573,33 +376,15 @@
       resetSession();
     });
 
-    // Push-to-talk with the space bar (outside text fields / the editor)
     document.addEventListener("keydown", (e) => {
       if (e.code === "Escape" && !els.debrief.classList.contains("hidden")) els.debrief.classList.add("hidden");
-      if (e.code !== "Space" || e.repeat || isTypingTarget(e.target) || overlayOpen()) return;
-      e.preventDefault();
-      startListening();
-    });
-    document.addEventListener("keyup", (e) => {
-      if (e.code !== "Space" || isTypingTarget(e.target) || overlayOpen()) return;
-      e.preventDefault();
-      if (state.listening) stopListening(true);
     });
   }
 
   async function boot() {
     populateExamples();
-    setVoice(state.voiceOn);
     bindEvents();
     updateStats();
-    if (!SR) {
-      els.mic.disabled = true;
-      els.mic.title = "Voice input needs Chrome or Edge";
-      els.browserNote.textContent = "🎙️ Voice input works in Chrome or Edge. In this browser you can still type to the duck.";
-      els.browserNote.classList.add("warn");
-    } else {
-      els.browserNote.textContent = "Works best in Chrome or Edge. Your browser will ask for microphone access.";
-    }
     checkHealth();
     await initEditor();
     loadExample("average");

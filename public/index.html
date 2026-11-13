@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Quack: the rubber duck that talks back</title>
-  <meta name="description" content="A voice debugging companion that only asks questions. It helps you find the bug yourself instead of handing you the answer." />
+  <meta name="description" content="An AI debugging companion that asks questions to help you find bugs yourself." />
   <meta property="og:title" content="Quack: the rubber duck that talks back" />
-  <meta property="og:description" content="Explain your bug out loud. The duck asks questions until you find the bug yourself. It never writes code for you." />
+  <meta property="og:description" content="Explain your bug to the duck. It asks questions until you find the bug yourself, and never writes code for you." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦆</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -26,7 +26,6 @@
     </div>
     <div class="topbar-actions">
       <span id="modeBadge" class="badge" title="Connection status">…</span>
-      <button id="voiceToggle" class="btn ghost" aria-pressed="true" title="Toggle the duck's voice">🔊 Voice on</button>
       <button id="resetBtn" class="btn ghost" title="Start a new debugging session">↺ New bug</button>
     </div>
   </header>
@@ -65,14 +64,10 @@
     </section>
 
     <!-- ================= Duck ================= -->
-    <section class="panel duck-panel" aria-label="Talk to the duck">
+    <section class="panel duck-panel" aria-label="Chat with the duck">
       <div class="duck-stage">
         <div id="duck" class="duck" data-state="idle" aria-hidden="true">
           <svg viewBox="0 0 220 190" xmlns="http://www.w3.org/2000/svg">
-            <g class="rings">
-              <circle cx="70" cy="70" r="52" />
-              <circle cx="70" cy="70" r="52" />
-            </g>
             <ellipse class="shadow" cx="115" cy="176" rx="72" ry="9" />
             <g class="bob">
               <path class="tail" d="M168 108 Q200 86 196 118 Q186 132 166 128 Z" />
@@ -99,7 +94,6 @@
         </div>
         <div class="duck-status">
           <span id="statusText">Ready when you are</span>
-          <span id="interim" class="interim"></span>
         </div>
       </div>
 
@@ -109,10 +103,6 @@
         <button id="hintBtn" class="btn secondary" title="Get a more specific question (still no answers)">
           🧭 I'm stuck
           <span class="hint-dots" aria-label="Hint level"><i></i><i></i><i></i></span>
-        </button>
-        <button id="micBtn" class="mic" aria-pressed="false" title="Click (or hold Space) and explain your bug out loud">
-          <span class="mic-icon">🎙️</span>
-          <span id="micLabel">Talk</span>
         </button>
         <button id="fixedBtn" class="btn success" title="Finish the session and get your debrief">🎉 I fixed it!</button>
       </div>
@@ -148,15 +138,14 @@
     <div class="card intro-card">
       <div class="intro-duck" aria-hidden="true">🦆</div>
       <h2 id="introTitle">Meet Quack, a rubber duck that talks back.</h2>
-      <p class="lead">Programmers explain bugs to rubber ducks because saying it out loud helps you spot the problem. Quack listens, and then asks questions.</p>
+      <p class="lead">Programmers explain bugs to rubber ducks because walking through the details helps reveal what they skipped. Quack reads your message and asks questions.</p>
       <ul class="how">
         <li><b>1.</b> Paste your code, or pick an example bug.</li>
-        <li><b>2.</b> Explain out loud what's going wrong.</li>
+        <li><b>2.</b> Type what's going wrong.</li>
         <li><b>3.</b> Answer the duck's questions until <em>you</em> find the bug.</li>
       </ul>
-      <p class="promise">🛡️ Quack never writes code or gives you the fix. A guardrail checks every reply before you hear it.</p>
+      <p class="promise">🛡️ Quack never writes code or gives you the fix. A guardrail checks every reply before it appears.</p>
       <button id="startBtn" class="btn primary big">Start debugging</button>
-      <p id="browserNote" class="note"></p>
     </div>
   </div>
 
