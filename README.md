@@ -1,70 +1,53 @@
-# 🦆 Quack: the rubber duck that talks back
+# Quack
 
-> Explain your bug in chat. Quack asks questions until **you** find the bug.
-> It never writes code and never gives you the fix.
+Quack is a text-based debugging coach for students. Instead of giving you a fix, it asks questions that help you work out what is wrong with your code. The project was built for IceHacks 2026.
 
-Built for **IceHacks 2026**.
+## Why we built it
 
-## The problem
-Students learning to code now have AI that writes the fix instantly. Pasting the bug into a chatbot gets the code running, but the student often doesn't learn why it broke, and the same bug comes back next week.
-
-Programmers have long debugged by **explaining their code to a rubber duck**. Walking through the details makes you notice what you skipped. A normal duck can't ask follow-up questions, though.
+AI can make it easy to get working code without understanding why the original code failed. We wanted to make debugging practice more useful for students, so Quack guides them through the problem rather than solving it for them.
 
 ## What it does
-- 💬 **Chat through the bug.** Describe the issue in text and Quack replies with a focused question.
-- ❓ **Socratic questions only.** Quack asks one question at a time: expected vs. actual output, then predicting values, then tracing lines.
-- 👀 **Points at your code.** The lines Quack is asking about are highlighted in the editor with a 🦆 in the margin.
-- 🧭 **Hint ladder.** Click "I'm stuck" to get more specific questions (3 levels). Even level 3 is still a question.
-- 🛡️ **Guardrail.** Every AI reply is checked by code before it appears. Replies containing code blocks, new code, or instructions like "change X to Y" or "the bug is…" are rejected and regenerated. The UI shows how many answers the duck held back.
-- 🧠 **Insight trail.** Your realizations are collected as you make them.
-- 🎉 **Debrief.** When you fix it, you get the concept name, what you did well, 3 takeaways, and a question to ask yourself next time. The stats always show **0 lines of code written by AI**.
+
+- You can describe a bug in chat or choose one of the included examples.
+- Quack asks one question at a time, using the code, error output, and conversation as context.
+- It can point to relevant lines in the Monaco editor and offer more specific hints when you get stuck.
+- The example programs are available in Python, JavaScript, TypeScript, Java, C++, C, C#, Go, Rust, HTML, and plain text. Changing the language keeps the selected example and loads its corresponding code.
+- When you finish, Quack gives you a short debrief with the concept, what you did well, takeaways, and a question to consider next time.
 
 ## How it works
-```mermaid
-flowchart LR
-    A["Student's text"] --> B["Browser app (Monaco editor)"]
-    B -->|"code + message + hint level"| C["Python server /api/duck"]
-    C --> D["Gemini (Socratic system prompt, JSON output)"]
-    D --> E{"Guardrail check"}
-    E -->|"leaks code or the fix"| D
-    E -->|"safe question"| B
-```
 
-**Guardrail details** ([duck_brain.py](duck_brain.py) `check_reply`): rejects code fences, multi-line code, backtick snippets or `a = b` expressions **that don't already exist in the student's code** (so the duck can still say "what is `i` on line 3?"), phrases that instruct a fix, and replies that don't ask a question. A rejected reply is sent back to the model with the reason (up to 2 retries). If it still fails, Quack falls back to a safe, generic tracing question. Covered by unit tests in [test_duck_brain.py](test_duck_brain.py).
+The browser sends the student's message, code, error output, and hint level to a small Python API. Gemini generates a response in a structured format. A code-level guardrail checks the response for code or direct instructions before it is shown. If a response fails the check, Quack asks Gemini to try again and uses a safe fallback if needed.
+
+The guardrail is implemented in `duck_brain.py` in `check_reply`. It permits references to code the student already wrote while rejecting newly suggested code and direct fixes. The tests are in `test_duck_brain.py`.
 
 ## Run it locally
-Needs only **Python 3.10+**. No packages to install.
+
+Quack uses Python 3.10 or later and has no third-party Python dependencies.
 
 ```bash
-cp .env.example .env        # then paste your Gemini API key into .env
-python server.py            # open http://localhost:8000 in Chrome or Edge
-python -m unittest -v       # run guardrail tests
+cp .env.example .env
+# Add your Gemini API key to .env
+python server.py
 ```
-With no API key, the app runs in **demo mode** with scripted questions, so you can try the UI.
-Get a free key at https://aistudio.google.com/apikey.
 
-## Deploy (free, Render)
-1. Push this folder to a public GitHub repo.
-2. On https://render.com → **New → Blueprint** → select the repo (it reads `render.yaml`).
-3. Set `GEMINI_API_KEY` when prompted. Done. Render gives you a public `https://….onrender.com` link.
+Open `http://localhost:8000`. Without a Gemini API key, Quack runs in demo mode with scripted replies. To run the guardrail tests, use `python -m unittest -v`.
 
-## Deploy to Vercel
-The app exposes `/api/health`, `/api/duck`, and `/api/debrief` through a lightweight Python WSGI entrypoint. Frontend assets in `public/` are served by Vercel's CDN and the local Python server. Without `GEMINI_API_KEY`, the public app runs in demo mode, so judges can try the full UI without consuming API quota. To enable live Gemini responses, set `GEMINI_API_KEY` as an encrypted server-side environment variable in the Vercel project and redeploy; never commit `.env`.
+You can create a Gemini API key at <https://aistudio.google.com/apikey>. Keep it in `.env` locally or in your hosting provider's environment settings; do not commit it.
+
+## Deployment
+
+The project can run on Render using the included `render.yaml`. On Vercel, the Python WSGI entrypoint serves `/api/health`, `/api/duck`, and `/api/debrief`, while the files in `public/` serve the frontend. Set `GEMINI_API_KEY` as a server-side environment variable to enable live Gemini responses. Without it, the app remains usable in demo mode.
 
 ## Built with
-Python (standard library `http.server`), vanilla JavaScript, HTML/CSS, Monaco Editor, Google Gemini API.
 
-## AI tools used (disclosure)
-- **Runtime:** Google Gemini generates Quack's questions and debriefs.
-- **Development:** AI coding assistants, including OpenAI Codex and Claude, helped with implementation and debugging. The team directed the work and checked the app and its guardrails.
+Python, vanilla JavaScript, HTML, CSS, Monaco Editor, and the Google Gemini API.
 
-## Challenges
-- Getting an LLM to *not* help too much. Prompting alone wasn't reliable, so we added a code-level guardrail with retries.
-- Allowing the duck to mention the student's existing code while still blocking new code (compare against the student's source).
-- Keeping the conversation focused: asking one useful debugging question at a time.
+## AI use
 
-## What's next
-- VS Code extension, so the duck lives in your editor.
-- Run the code in the browser so the duck can say "run it with this input".
-- Teacher dashboard: see which concepts a class struggles with (without the AI ever doing the homework).
-- More coding examples and classroom-ready learning tools.
+Gemini generates Quack's questions and debriefs at runtime. AI coding assistants, including Codex and Claude, also helped with implementation and debugging. The team reviewed the project and its guardrails.
+
+## Challenges and next steps
+
+The main challenge was getting an AI to guide students without giving them the answer. Prompting helped, but it was not reliable enough on its own, so we added a response guardrail and retries.
+
+Next, we would like to bring Quack into coding editors, add more examples, and explore classroom tools that help teachers see which concepts students find difficult.
